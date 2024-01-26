@@ -1,0 +1,9 @@
+{
+  "name": "ClimateData",
+  "version": "1.0.0",
+  "dependencies": {
+    "express": "^4.18.2",
+    "google-spreadsheet": "^3.3.0",
+    "xlsx": "^0.18.5"
+  }
+}

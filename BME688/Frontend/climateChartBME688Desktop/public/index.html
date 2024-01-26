@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Climate Data</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css"
+          integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+          crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+            integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+            crossorigin="anonymous">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js"
+            integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+            crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
+</head>
+
+<body>
+<div style="text-align: center;">
+    <h3>Severins Klima Dashboard</h3>
+    <button class="btn btn-outline-success" onclick="loadData(36, false)">Plot 6h</button>
+    <button class="btn btn-outline-success" onclick="loadData(72, false)">Plot 12h</button>
+    <button class="btn btn-outline-success" onclick="loadData(144, false)">Plot 24h</button>
+    <button class="btn btn-outline-success" onclick="loadData(288, false)">Plot 48h</button>
+    <button class="btn btn-outline-success" onclick="loadData(288, true)">Plot infinity</button>
+</div>
+
+<div class="row" style="width:2560px; pointer-events: none; margin-left:100px;">
+    <div class="col-md-6">
+        <canvas id="humidity-chart"></canvas>
+        <canvas id="temperature-chart"></canvas>
+        <canvas id="pressure-chart"></canvas>
+    </div>
+</div>
+</body>
+
+<script type="text/javascript">
+    function loadData(timespan, infinity) {
+        const sheetId = '1iZZWYpiYINLSuc8bKwiJ8gjeohrBkG9kWqANZCjcs3M';
+        const base = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?`;
+        const sheetName = 'climate-table';
+        const query = encodeURIComponent('Select *')
+        const url = `${base}&sheet=${sheetName}&tq=${query}`
+        const data = []
+        fetch(url)
+            .then(res => res.text())
+            .then(rep => {
+                const jsonData = JSON.parse(rep.substring(47).slice(0, -2));
+                const colz = [];
+                jsonData.table.cols.forEach((heading) => {
+                    if (heading.label) {
+                        let column = heading.label;
+                        colz.push(column);
+                    }
+                })
+                jsonData.table.rows.forEach((rowData) => {
+                    const row = {};
+                    colz.forEach((ele, ind) => {
+                        row[ele] = (rowData.c[ind] != null) ? rowData.c[ind].v : '';
+                    })
+                    data.push(row);
+                })
+                processData(data, timespan, infinity)
+            })
+    }
+
+    function processData(data, timespan, infinity){
+        let time = []
+        let humidity = [];
+        let temperature = [];
+        let pressure = [];
+        let slicedData;
+        if(infinity){
+            slicedData = data;
+        }else{
+            slicedData = data.slice(0, timespan);
+        }
+
+        const slicedReversedData = slicedData.reverse()
+        slicedReversedData.forEach((row) => {
+            if (infinity) {
+                time.push(row.Date);
+            } else {
+                time.push(row.Time);
+            }
+            temp = row.Temperature
+            hum = row['Humidity']
+            press = row['Pressure']
+            humidity.push(hum);
+            temperature.push(temp)
+            pressure.push(press)
+        });
+
+        const maxTemp = temperature.reduce((a, b) => Math.max(a, b), -Infinity);
+        const maxHumidity = humidity.reduce((a, b) => Math.max(a, b), -Infinity);
+        const maxPressure = pressure.reduce((a, b) => Math.max(a, b), -Infinity);
+        const minTemp = Math.min(...temperature);
+        const minHumidity = Math.min(...humidity);
+        const minPressure = Math.min(...pressure);
+
+        dataset = addData('Humidity (%)', humidity, 'blue', 'black');
+        dataset2 = addData('Temperature (celsius)', temperature, 'red', 'black');
+        dataset3 = addData('Pressure (hPa)', pressure, 'green', 'black');
+
+        drawHumidityChart(dataset, time, 'humidity','line', maxHumidity, minHumidity);
+        drawTemperatureChart(dataset2, time, 'temperature','line', maxTemp, minTemp);
+        drawPressureChart(dataset3, time, 'pressure','line', maxPressure, minPressure);
+    }
+
+    function addData(title, Data, bgcolor, bordercolor) {
+        return [{
+            label: title,
+            data: Data,
+            backgroundColor: bgcolor,
+            borderColor: bordercolor,
+            borderWidth: 1,
+            pointRadius: 1,
+            pointHoverRadius: 1
+        }];
+    }
+
+
+    function drawHumidityChart(dataset, Labels, type, chartType, maxHumdidity, minHumidity) {
+        const ctx = document.getElementById(type + '-chart').getContext('2d');
+        const myChart = new Chart(ctx, {
+            type: chartType,
+            data: {
+                labels: Labels,
+                datasets: dataset
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: false,
+                            max: maxHumdidity+0.5,
+                            min: minHumidity-0.5,
+                            stepSize: 0.1
+                        }
+                    }]
+                }
+            }
+        });
+    }
+
+    function drawTemperatureChart(dataset, Labels, type, chartType, maxTemp, minTemp) {
+        const ctx = document.getElementById(type + '-chart').getContext('2d');
+        const myChart = new Chart(ctx, {
+            type: chartType,
+            data: {
+                labels: Labels,
+                datasets: dataset
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: false,
+                            max: maxTemp+1,
+                            min: minTemp-0.5,
+                            stepSize: 0.5
+                        }
+                    }]
+                }
+            }
+        });
+    }
+
+    function drawPressureChart(dataset, Labels, type, chartType, maxPressure, minPressure) {
+        const ctx = document.getElementById(type + '-chart').getContext('2d');
+        const myChart = new Chart(ctx, {
+            type: chartType,
+            data: {
+                labels: Labels,
+                datasets: dataset
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: false,
+                            max: maxPressure+10,
+                            min: minPressure-5,
+                            stepSize: 1
+                        }
+                    }]
+                }
+            }
+        });
+    }
+</script>
+</html>
